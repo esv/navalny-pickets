@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script type="text/javascript">
+        {% if user.is_authenticated %}
+            window.opener.auth_callback();
+        {% endif %}
+        window.close();
+    </script>
+</head>
+<body>
+</body>
+</html>

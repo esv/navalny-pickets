@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Пикеты в Москве{% endblock %}
+
+{% block h1 %}Пикеты в Москве{% endblock %}
+
+{% block meta %}
+    <script src="//api-maps.yandex.ru/2.0-stable/?load=package.standard&lang=ru-RU&coordorder=longlat" type="text/javascript"></script>
+{% endblock %}
+
+{% block left %}
+    <div style="height:600px; margin-bottom:30px;" id="map"></div>
+{% endblock %}
+
+{% block right %}
+
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Где</th>
+            <th>Когда</th>
+            <th>Координатор</th>
+            <th>Статус</th>
+            <th>Пойти</th>
+        </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr id="picket{{ row.id }}" rel="{{ row.id }}">
+                    <td>{{ row.place_readable }}</td>
+                    <td>{{ row.begin_at|date }} {{ row.begin_at|time:"H:i" }}{% if row.end_at %}—{{ row.end_at|time:"H:i" }}{% endif %}</td>
+                    <td>{{ row.organizer.name }} <span style="display: inline-block;white-space: normal;">{{ row.organizer.phone }}</span></td>
+                    <td>{{ row.get_status_display }}</td>
+                    <td>
+                        {% if not user.is_authenticated or not row in user_pickets %}
+                            <form action="{% url 'go' %}" method="post" class="go">
+                                {% csrf_token %}
+                                <input type="hidden" value="{{ row.id }}" name="picket_id"/>
+                                <input type="submit" value="Я пойду" class="go btn btn-mini btn-primary"/>
+                            </form>
+                        {% else %}
+                            <form action="{% url 'wont_go' %}" method="post" rel="" class="not_go">
+                                {% csrf_token %}
+                                <input type="hidden" value="{{ row.id }}" name="picket_id"/>
+                                <input type="submit" value="Я передумал" class="go btn btn-mini"/>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+    <div id="login" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+            <h3 id="myModalLabel">Войти</h3>
+        </div>
+        <div class="modal-body">
+            <ul class="unstyled">
+                <li style="margin: 5px"><a class="btn btn-auth btn-primary" href="{% url "socialauth_begin" "twitter" %}">Войти через Twitter</a><br/></li>
+                <li style="margin: 5px"><a class="btn btn-auth btn-primary" href="{% url "socialauth_begin" "facebook" %}">Войти через Facebook</a></li>
+                <li style="margin: 5px"><a class="btn btn-auth btn-primary" href="{% url "socialauth_begin" "vk-oauth" %}">Войти через Вконтакте</a></li>
+            </ul>
+        </div>
+    </div>
+{% endblock %}
+
+
+{% block js %}
+
+    function is_touch_device() {
+      try {
+        document.createEvent("TouchEvent");
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    var form;
+    var auth = {{ user.is_authenticated|lower }};
+
+    function auth_callback() {
+        auth = true;
+        form.submit();
+    }
+
+    $(function() {
+
+
+        $('.go').submit(function() {
+            if (!auth) {
+                $('#login').modal();
+                form = $(this);
+                return false;
+            }
+        });
+
+        $('.btn-auth').click(function(e){
+            //var url = facebook_auth_url + '&display=' + (typeof(window.ontouchstart) == 'undefined' ? 'popup' : 'touch');
+            window.open($(this).attr('href'),'_blank','width=640,height=339,location=1,menubar=0,resizable=0,status=0,scrollbars=0,toolbar=0');
+            return false;
+        });
+
+        ymaps.ready(init);
+        var myMap;
+
+        function init(){
+            myMap = new ymaps.Map ("map", {
+                center: [37.617671,55.755768],
+                zoom: 13
+            });
+
+            if (is_touch_device()) {
+                myMap.behaviors.disable(['drag']);
+            }
+
+            myMap.controls.add('mapTools');
+            myMap.controls.add(new ymaps.control.ZoomControl());
+
+            c1 = new ymaps.GeoObjectCollection({}, {
+                preset: 'twirl#darkgreenIcon'
+            });
+
+            {% for row in rows %}
+                myPlacemark = new ymaps.Placemark([{{ row.place_latlong }}], { content: 'Olo',
+                    balloonContentHeader: '{{ row.title }}',
+                    fillColor: '00000000',//'0066ff99',
+                    preset: 'twirl#redIcon',
+                    balloonContent: '{{ row.place_readable }}<br/>\
+                    {{ row.begin_at|date }} {{ row.begin_at|time:"H:i" }}{% if row.end_at %}—{{ row.end_at|time:"H:i" }}{% endif %}<br/>\
+                    Координатор: {{ row.organizer.name }} <span nowrap="nowrap">{{ row.organizer.phone }}</span><br/>\
+                    Статус: {{ row.get_status_display }}'});
+                    c1.add(myPlacemark);
+            {% endfor %}
+
+            myMap.geoObjects.add(c1);
+        }
+    });
+{% endblock %}
